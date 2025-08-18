@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Transaction History</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <style>
+    :root{
+      --cb-primary:#0b66ff;
+      --cb-bg:#f4f6fc;
+      --ink:#1f2d3d;
+      --muted:#6b7a90;
+      --line:#e9edf3;
+      --line-strong:#dfe5ee;
+      --thead:#fafbfe;
+    }
+
+    body{ background:var(--cb-bg) }
+
+    /* Top bar */
+    .page-bar{
+      display:flex; justify-content:space-between; align-items:center; gap:12px;
+      padding:22px 0 10px;
+    }
+    .page-bar h2{ margin:0; color:#0b2a66; font-weight:800; letter-spacing:.2px }
+
+    /* FILTERS (flat, not a card) */
+    .filter-wrap{
+      position:relative;
+      background:#fff;
+      border:1px solid var(--line-strong);
+      border-radius:16px;
+      padding:14px 14px 10px;
+      overflow:visible !important;
+      z-index:2000; /* keep range dropdown above the table */
+    }
+    .filter-title{
+      font-weight:700; color:#0b2a66; margin-bottom:6px;
+      border-bottom:1px dashed rgba(0,86,210,.18); padding-bottom:8px;
+    }
+    .filter-wrap .form-label{ font-size:.8rem; color:#8492a6; margin-bottom:4px }
+    .filter-wrap .btn, .filter-wrap .form-select, .filter-wrap .form-control{ border-radius:12px }
+
+    /* Range dropdown */
+    .range-dd .dropdown-toggle{ border-radius:10px }
+    .range-dd .dropdown-menu{
+      border-radius:16px; padding:14px; min-width:320px;
+      border:1px solid var(--line-strong);
+      box-shadow:0 18px 40px rgba(0,0,0,.18);
+      z-index:3000; /* higher than table and filter */
+    }
+    .range-dd .dropdown-item-btn{
+      border:1px solid var(--line);
+      background:#fff;
+      border-radius:10px;
+      padding:.5rem .75rem;
+      text-align:left;
+      transition:transform .08s ease, box-shadow .12s ease, border-color .12s ease;
+    }
+    .range-dd .dropdown-item-btn:hover{
+      transform:translateY(-1px);
+      box-shadow:0 6px 16px rgba(0,0,0,.08);
+      border-color:#d2d9e6;
+    }
+
+    /* Meta line */
+    .meta-line{ color:#6c7a90; font-size:.875rem; margin:10px 2px }
+
+    /* RESULTS TABLE — Bayut-like: light horizontal rules, no verticals */
+    .results-wrap{ position:relative; z-index:1; overflow-x:auto } /* safe on small screens */
+    .tx-table{
+      width:100%;
+      border-collapse:collapse;
+      table-layout:fixed;
+      background:#fff;
+      border:1px solid var(--line-strong);
+      border-radius:16px;
+      overflow:hidden; /* rounded header corners */
+      font-size:14px;
+    }
+    .tx-table thead th{
+      background:var(--thead);
+      color:#46546b;
+      font-weight:700;
+      font-size:13px;
+      text-transform:uppercase;
+      letter-spacing:.02em;
+      padding:12px 10px;
+      border-bottom:1px solid var(--line-strong);
+      white-space:nowrap;
+    }
+    .tx-table tbody td{
+      color:var(--ink);
+      padding:14px 10px;
+      border-bottom:1px solid var(--line);
+      vertical-align:middle;
+    }
+    .tx-table tbody tr:hover td{ background:#f9fbff }
+    .tx-table .text-end{ text-align:right; font-variant-numeric:tabular-nums }
+
+    /* Name chips (seller/buyer) with overflow compaction */
+    .chip-grid{ display:flex; flex-wrap:wrap; gap:6px; align-items:flex-start }
+    .pill{
+      display:inline-block; max-width:160px;
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+      border:1px solid rgba(0,86,210,.16);
+      background:#f6f9ff; color:#174ea6;
+      padding:.18rem .55rem; border-radius:999px;
+      font-size:.78rem; line-height:1.1;
+    }
+    .pill.more{ background:#eef2ff; border-style:dashed; cursor:help }
+    .muted{ color:#9aa6b2 }
+
+    /* Pagination */
+    .pagination .page-link{ min-width:2.25rem; text-align:center; border-radius:10px }
+    .pagination .page-item.active .page-link{ background:#e3eefd; border-color:#e3eefd; color:#0b2a66 }
+
+    /* Small helpers */
+    .btn-outline-success{ border-radius:10px }
+    .btn-outline-secondary{ border-radius:10px }
+
+    .tx-table {
+  width: 100%;
+  border-collapse: collapse; /* makes vertical lines continuous */
+}
+
+.tx-table th,
+.tx-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid #e0e0e0; /* horizontal line */
+  border-right: 1px solid #e0e0e0;  /* vertical line */
+}
+
+.tx-table th:last-child,
+.tx-table td:last-child {
+  border-right: none; /* remove extra line at far right */
+}
+
+.tx-table thead th {
+  border-bottom: 2px solid #ccc; /* stronger header line */
+  background: #f9f9f9;           /* optional */
+}
+
+.cb-pager-wrap{
+  display:flex; justify-content:center; margin:24px 0 40px;
+}
+.cb-pager{
+  display:inline-flex; align-items:center; gap:8px;
+  background:#fff; border-radius:999px; padding:6px;
+  box-shadow:0 6px 18px rgba(16,24,40,.08);
+  border:1px solid #e7ecf3;
+}
+.cb-pg-btn{
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:36px; height:36px; padding:0 12px;
+  font-weight:600; font-size:14px; line-height:1;
+  color:#0b2a66; background:#fff; border-radius:8px;
+  border:1px solid transparent; text-decoration:none;
+  transition:all .18s ease;
+}
+.cb-pg-btn:hover{ border-color:#d7e3ff; background:#f2f7ff }
+.cb-num.active{
+  background:#0b66ff; color:#fff; border-color:#0b66ff;
+}
+.cb-arrow{ width:36px; padding:0; font-size:13px }
+.cb-pg-btn.disabled,
+.cb-pg-btn.disabled:hover{
+  pointer-events:none; opacity:.45; background:#fff; border-color:transparent;
+}
+
+
+    
+  </style>
+</head>
+<body>
+  <div class="container" style="max-width:1280px">
+    <!-- Top bar -->
+    <div class="page-bar">
+      <div class="d-flex align-items-center gap-2">
+        <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('home') }}">← Back</a>
+        <h2>Transaction History</h2>
+      </div>
+      <a class="btn btn-outline-success" href="{{ url_for('transactions') }}?{{ base_qs }}&export=csv">Export CSV</a>
+    </div>
+
+    <!-- Filters -->
+    <form id="txFilterForm" method="get" class="filter-wrap">
+      <div class="d-flex align-items-center justify-content-between">
+        <div class="filter-title">Filters</div>
+
+        <!-- Select range -->
+        <div class="range-dd dropdown">
+          <button class="btn btn-outline-primary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+            Select range
+          </button>
+          <div class="dropdown-menu dropdown-menu-end">
+            <div class="mb-2 fw-semibold small text-muted">Show data for</div>
+            <div class="d-grid gap-2 mb-3">
+              <button type="button" class="dropdown-item-btn qr" data-range="last_month">Last month</button>
+              <button type="button" class="dropdown-item-btn qr" data-range="last_3_months">Last 3 months</button>
+              <button type="button" class="dropdown-item-btn qr" data-range="last_6_months">Last 6 months</button>
+              <button type="button" class="dropdown-item-btn qr" data-range="last_12_months">Last 12 months</button>
+              <button type="button" class="dropdown-item-btn qr" data-range="last_3_years">Last 3 years</button>
+            </div>
+            <hr class="my-2">
+            <div class="mb-2 fw-semibold small text-muted">Or select custom range</div>
+            <div class="row g-2">
+              <div class="col-6">
+                <label class="form-label small text-muted">From</label>
+                <input type="date" class="form-control form-control-sm" id="rangeFrom">
+              </div>
+              <div class="col-6">
+                <label class="form-label small text-muted">To</label>
+                <input type="date" class="form-control form-control-sm" id="rangeTo">
+              </div>
+            </div>
+            <div class="d-flex gap-2 mt-3">
+              <button type="button" class="btn btn-primary btn-sm" id="applyRange">Apply</button>
+              <button type="button" class="btn btn-outline-secondary btn-sm" id="clearRange">Clear</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- hidden from/to written by dropdown -->
+      <input type="hidden" name="from" id="fromDateHidden" value="{{ filters.get('from','') }}">
+      <input type="hidden" name="to"   id="toDateHidden"   value="{{ filters.get('to','') }}">
+
+      <div class="row g-2 align-items-end mt-2">
+        <div class="col-sm-6 col-md-3">
+          <label class="form-label">City</label>
+          <select name="city" class="form-select" id="tx-city">
+            <option value="">All Cities</option>
+          </select>
+        </div>
+
+        <div class="col-sm-6 col-md-3">
+          <label class="form-label">Building</label>
+          <select name="building_name" class="form-select" id="tx-building">
+            <option value="">All Buildings</option>
+          </select>
+        </div>
+
+        <div class="col-sm-6 col-md-3">
+          <label class="form-label">Community</label>
+          <select name="community" class="form-select" id="tx-community">
+            <option value="">All Communities</option>
+          </select>
+        </div>
+
+        <div class="col-sm-6 col-md-3">
+          <label class="form-label">Sub Community</label>
+          <select name="sub_community" class="form-select" id="tx-sub-community">
+            <option value="">All Sub Communities</option>
+          </select>
+        </div>
+
+        <div class="col-sm-6 col-md-3">
+          <label class="form-label">Property Type</label>
+          <select name="property_type" class="form-select" id="tx-ptype">
+            <option value="">All Property Types</option>
+          </select>
+        </div>
+
+        <div class="col-sm-6 col-md-3">
+          <label class="form-label">Sub Type</label>
+          <select name="sub_type" class="form-select" id="tx-stype">
+            <option value="">All Sub Types</option>
+          </select>
+        </div>
+
+        <div class="col-sm-6 col-md-3">
+          <label class="form-label">Search (building / owner / city)</label>
+          <input class="form-control" name="q" placeholder="Search…" value="{{ filters.get('q','') }}">
+        </div>
+
+        <div class="col-12 d-flex gap-2 mt-1">
+          <button class="btn btn-primary">Apply</button>
+          <a class="btn btn-outline-secondary" href="{{ url_for('transactions') }}">Clear</a>
+        </div>
+      </div>
+    </form>
+
+    <!-- counts -->
+    <div class="meta-line">
+      Showing page {{ current_page }} of {{ total_pages }} • {{ total }} total rows 
+      {% if clamped %}<span class="ms-2 badge bg-warning-subtle text-warning-emphasis">window auto-limited</span>{% endif %}
+    </div>
+
+    <!-- Results table -->
+    <div class="results-wrap">
+      <table class="tx-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Building</th>
+            <th>Unit</th>
+            <th class="text-end">Price</th>
+            <th>Type</th>
+            <th class="text-end">Beds</th>
+            <th class="text-end">Area (sqft)</th>
+            <th>City</th>
+            <th>Community</th>
+            <th>Sub-com</th>
+            <th>Seller</th>
+            <th>Buyer</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+            <tr>
+              <td>{{ r.date or '—' }}</td>
+              <td>{{ r.building_name or '—' }}</td>
+              <td>{{ r.unit_number or '—' }}</td>
+              <td class="text-end">
+                {% if r.price is number %}
+                  {{ "{:,.0f}".format(r.price) }}
+                {% else %}
+                  <span class="muted">—</span>
+                {% endif %}
+              </td>
+              <td>{{ r.property_type or '—' }}</td>
+              <td class="text-end">{{ r.beds if r.beds is not none else '—' }}</td>
+              <td class="text-end">
+                {% if r.area_sqft is number %}{{ "{:,.0f}".format(r.area_sqft) }}{% else %}—{% endif %}
+              </td>
+              <td>{{ r.city or '—' }}</td>
+              <td>{{ r.community or '—' }}</td>
+              <td>{{ r.sub_community or '—' }}</td>
+
+              <!-- Sellers -->
+              <td>
+                {% set seller_list = (r.sellers or []) %}
+                {% if seller_list and seller_list|length %}
+                  <div class="chip-grid">
+                    {% for s in seller_list[:6] %}
+                      <span class="pill" title="{{ s }}">{{ s }}</span>
+                    {% endfor %}
+                    {% if seller_list|length > 6 %}
+                      <span class="pill more" title="{{ (seller_list[6:])|join(', ') }}">+{{ seller_list|length - 6 }}</span>
+                    {% endif %}
+                  </div>
+                {% else %}
+                  <span class="muted">—</span>
+                {% endif %}
+              </td>
+
+              <!-- Buyers -->
+              <td>
+                {% set buyer_list = (r.buyers or []) %}
+                {% if buyer_list and buyer_list|length %}
+                  <div class="chip-grid">
+                    {% for b in buyer_list[:6] %}
+                      <span class="pill" title="{{ b }}">{{ b }}</span>
+                    {% endfor %}
+                    {% if buyer_list|length > 6 %}
+                      <span class="pill more" title="{{ (buyer_list[6:])|join(', ') }}">+{{ buyer_list|length - 6 }}</span>
+                    {% endif %}
+                  </div>
+                {% else %}
+                  <span class="muted">—</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% else %}
+            <tr><td colspan="12" class="text-center text-muted py-4">No transactions match your filters.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Windowed pagination -->
+    {% if total_pages and total_pages > 1 %}
+<div class="cb-pager-wrap">
+  <div class="cb-pager">
+    <!-- First / Prev -->
+    <a class="cb-pg-btn cb-arrow {{ 'disabled' if not prev_page }}"
+       href="?{{ base_qs }}&page=1" aria-label="First">&#171;</a>
+    <a class="cb-pg-btn cb-arrow {{ 'disabled' if not prev_page }}"
+       href="?{{ base_qs }}&page={{ prev_page or 1 }}" aria-label="Previous">&#9664;</a>
+
+    <!-- Numbered pages (auto window: current ±2) -->
+    {% for p in page_numbers %}
+      <a class="cb-pg-btn cb-num {{ 'active' if p == current_page }}"
+         href="?{{ base_qs }}&page={{ p }}">{{ p }}</a>
+    {% endfor %}
+
+    <!-- Next / Last -->
+    <a class="cb-pg-btn cb-arrow {{ 'disabled' if not next_page }}"
+       href="?{{ base_qs }}&page={{ next_page or last_page }}" aria-label="Next">&#9654;</a>
+    <a class="cb-pg-btn cb-arrow {{ 'disabled' if current_page == last_page }}"
+       href="?{{ base_qs }}&page={{ last_page }}" aria-label="Last">&#187;</a>
+  </div>
+</div>
+{% endif %}
+
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- Cascading dropdowns (same logic as Home) -->
+  <script>
+  (async function () {
+    const citySel = document.getElementById('tx-city');
+    const bldgSel = document.getElementById('tx-building');
+    const commSel = document.getElementById('tx-community');
+    const subcSel = document.getElementById('tx-sub-community');
+    const ptypeSel = document.getElementById('tx-ptype');
+    const stypeSel = document.getElementById('tx-stype');
+
+    function setOptions(select, list, placeholder) {
+      const keep = select.value;
+      select.innerHTML = '';
+      const head = document.createElement('option');
+      head.value = ''; head.textContent = placeholder;
+      select.appendChild(head);
+      (list || []).forEach(v => {
+        const o = document.createElement('option');
+        o.value = v; o.textContent = v;
+        select.appendChild(o);
+      });
+      if (keep && list && list.includes(keep)) select.value = keep;
+    }
+
+    async function api(path, params) {
+      const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+      const r = await fetch(path + qs);
+      return r.json();
+    }
+
+    async function loadCities() {
+      const j = await api('/api/cities');
+      setOptions(citySel, j.cities || [], 'All Cities');
+    }
+
+    async function loadLocationCascade() {
+      const params = {};
+      if (citySel.value) params.city = citySel.value;
+      if (bldgSel.value) params.building_name = bldgSel.value;
+      if (commSel.value) params.community = commSel.value;
+
+      const j = await api('/api/cascade_options', params);
+      setOptions(bldgSel, j.buildings || [], 'All Buildings');
+      setOptions(commSel, j.communities || [], 'All Communities');
+      setOptions(subcSel, j.sub_communities || [], 'All Sub Communities');
+    }
+
+    async function loadTypeCascade() {
+      const base = {};
+      if (citySel.value) base.city = citySel.value;
+      if (bldgSel.value) base.building_name = bldgSel.value;
+      if (commSel.value) base.community = commSel.value;
+      if (subcSel.value) base.sub_community = subcSel.value;
+
+      const jt = await api('/api/types', base);
+      setOptions(ptypeSel, jt.property_types || [], 'All Property Types');
+
+      const st = Object.assign({}, base);
+      if (ptypeSel.value) st.property_type = ptypeSel.value;
+      const js = await api('/api/subtypes', st);
+      setOptions(stypeSel, js.sub_types || [], 'All Sub Types');
+    }
+
+    // Init + preselect from URL
+    await loadCities();
+
+    const qs = new URLSearchParams(location.search);
+    citySel.value = qs.get('city') || '';
+    await loadLocationCascade();
+
+    bldgSel.value = qs.get('building_name') || '';
+    await loadLocationCascade();
+
+    commSel.value = qs.get('community') || '';
+    await loadLocationCascade();
+
+    subcSel.value = qs.get('sub_community') || '';
+    await loadLocationCascade();
+
+    await loadTypeCascade();
+    ptypeSel.value = qs.get('property_type') || '';
+    await loadTypeCascade();
+
+    stypeSel.value = qs.get('sub_type') || '';
+
+    // Change handlers
+    citySel.addEventListener('change', async () => {
+      bldgSel.value = commSel.value = subcSel.value = '';
+      await loadLocationCascade();
+      ptypeSel.value = stypeSel.value = '';
+      await loadTypeCascade();
+    });
+    bldgSel.addEventListener('change', async () => {
+      commSel.value = subcSel.value = '';
+      await loadLocationCascade();
+      stypeSel.value = '';
+      await loadTypeCascade();
+    });
+    commSel.addEventListener('change', async () => {
+      subcSel.value = '';
+      await loadLocationCascade();
+      stypeSel.value = '';
+      await loadTypeCascade();
+    });
+    subcSel.addEventListener('change', async () => {
+      stypeSel.value = '';
+      await loadTypeCascade();
+    });
+    ptypeSel.addEventListener('change', async () => {
+      stypeSel.value = '';
+      await loadTypeCascade();
+    });
+  })();
+  </script>
+
+  <!-- Range dropdown JS -->
+  <script>
+(function(){
+  const form   = document.getElementById('txFilterForm');
+  const hFrom  = document.getElementById('fromDateHidden');
+  const hTo    = document.getElementById('toDateHidden');
+  const inFrom = document.getElementById('rangeFrom');
+  const inTo   = document.getElementById('rangeTo');
+  const btns   = document.querySelectorAll('.dropdown .qr');
+  const apply  = document.getElementById('applyRange');
+  const clear  = document.getElementById('clearRange');
+
+  function fmt(d){
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;
+  }
+  function addMonths(date, months){
+    const d = new Date(date);
+    const day = d.getDate();
+    d.setMonth(d.getMonth()+months);
+    if (d.getDate() < day) d.setDate(0); // month-end safe
+    return d;
+  }
+  function setRangeByPreset(p){
+    const today = new Date();
+    inTo.value = fmt(today);
+    if (p === 'last_month')         inFrom.value = fmt(addMonths(today, -1));
+    else if (p === 'last_3_months') inFrom.value = fmt(addMonths(today, -3));
+    else if (p === 'last_6_months') inFrom.value = fmt(addMonths(today, -6));
+    else if (p === 'last_12_months')inFrom.value = fmt(addMonths(today, -12));
+    else if (p === 'last_3_years')  inFrom.value = fmt(addMonths(today, -36));
+  }
+
+  // 🚀 Auto-apply when a preset is clicked
+  btns.forEach(b => b.addEventListener('click', () => {
+    setRangeByPreset(b.dataset.range);
+    hFrom.value = inFrom.value || '';
+    hTo.value   = inTo.value   || '';
+    form.submit();
+  }));
+
+  apply.addEventListener('click', () => {
+    hFrom.value = inFrom.value || '';
+    hTo.value   = inTo.value   || '';
+    form.submit();
+  });
+
+  clear.addEventListener('click', () => {
+    inFrom.value = '';
+    inTo.value   = '';
+    hFrom.value  = '';
+    hTo.value    = '';
+    form.submit();
+  });
+})();
+</script>
+
+</body>
+</html>

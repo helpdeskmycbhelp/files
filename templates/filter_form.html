@@ -1,0 +1,161 @@
+{# Keep hero search value when applying filters #}
+{% if request.args.get('building') %}
+  <input type="hidden" name="building" value="{{ request.args.get('building') }}">
+{% endif %}
+
+<div class="row g-2 g-md-3 align-items-end">
+
+  {# 1) Cascading filters: City -> Building -> Community -> Sub Community #}
+  <!-- City -->
+  <div class="col-12 col-md-3">
+    <div class="form-floating">
+      <select name="city" class="form-select rounded-3 shadow-sm js-choices-single">
+        <option value="">All Cities</option>
+      </select>
+      <label>City</label>
+    </div>
+  </div>
+
+  <!-- Building (depends on city) -->
+  <div class="col-12 col-md-3">
+    <div class="form-floating">
+      <select name="building_name" class="form-select rounded-3 shadow-sm js-choices-single">
+        <option value="">All Buildings</option>
+      </select>
+      <label>Building</label>
+    </div>
+  </div>
+
+  <!-- Community (depends on city + building) -->
+  <div class="col-12 col-md-3">
+    <div class="form-floating">
+      <select name="community" class="form-select rounded-3 shadow-sm js-choices-single">
+        <option value="">All Communities</option>
+      </select>
+      <label>Community</label>
+    </div>
+  </div>
+
+  <!-- Sub Community (depends on city + building + community) -->
+  <div class="col-12 col-md-3">
+    <div class="form-floating">
+      <select name="sub_community" class="form-select rounded-3 shadow-sm js-choices-single">
+        <option value="">All Sub Communities</option>
+      </select>
+      <label>Sub Community</label>
+    </div>
+  </div>
+
+  {# 2) Other filters #}
+  <!-- Property Type -->
+  <div class="col-12 col-md-3">
+    <div class="form-floating">
+      {% set selected_type = request.args.get('property_type','') %}
+      {% set _types = property_types or [] %}
+      <select class="form-select rounded-3 shadow-sm js-choices-single"
+              name="property_type" aria-label="Property Type">
+        <option value="">All Property Types</option>
+        {% for t in _types %}
+          <option value="{{ t }}" {{ 'selected' if t == selected_type else '' }}>{{ t }}</option>
+        {% endfor %}
+      </select>
+      <label>Property Type</label>
+    </div>
+  </div>
+
+  <!-- Sub Type -->
+  <div class="col-12 col-md-3">
+    <div class="form-floating">
+      {% set selected_sub = request.args.get('sub_type','') %}
+      {% set _subs = sub_types or [] %}
+      <select class="form-select rounded-3 shadow-sm js-choices-single"
+              name="sub_type" aria-label="Sub Type">
+        <option value="">All Sub Types</option>
+        {% for s in _subs %}
+          <option value="{{ s }}" {{ 'selected' if s == selected_sub else '' }}>{{ s }}</option>
+        {% endfor %}
+      </select>
+      <label>Sub Type</label>
+    </div>
+  </div>
+
+  <!-- Beds -->
+  <div class="col-6 col-md-2">
+    <div class="form-floating">
+      {% set selected_beds = request.args.get('beds','') %}
+      {% set _beds = beds_list or [] %}
+      <select class="form-select rounded-3 shadow-sm" name="beds">
+        <option value="">Any</option>
+        {% for b in _beds %}
+          <option value="{{ b }}" {{ 'selected' if selected_beds == b|string else '' }}>{{ b }}</option>
+        {% endfor %}
+      </select>
+      <label>Beds</label>
+    </div>
+  </div>
+
+  <!-- Land / Mun No -->
+  <div class="col-12 col-md-3">
+    <div class="form-floating">
+      {% set selected_land = request.args.get('land_number','') %}
+      {% set _lands = land_numbers or [] %}
+      <select class="form-select rounded-3 shadow-sm js-choices-single"
+              name="land_number" aria-label="Land / Mun No">
+        <option value="">All Land / Mun No</option>
+        {% for ln in _lands %}
+          <option value="{{ ln }}" {{ 'selected' if ln == selected_land else '' }}>{{ ln }}</option>
+        {% endfor %}
+      </select>
+      <label>Land / Mun No</label>
+    </div>
+  </div>
+
+  <!-- Min/Max Area -->
+  <div class="col-6 col-md-2">
+    <input type="number" step="0.01" class="form-control rounded-3 shadow-sm"
+           name="min_area" placeholder="Min Area"
+           value="{{ request.args.get('min_area','') }}">
+  </div>
+  <div class="col-6 col-md-2">
+    <input type="number" step="0.01" class="form-control rounded-3 shadow-sm"
+           name="max_area" placeholder="Max Area"
+           value="{{ request.args.get('max_area','') }}">
+  </div>
+
+  <!-- Min/Max Price -->
+  <div class="col-6 col-md-2">
+    <input type="number" class="form-control rounded-3 shadow-sm"
+           name="min_price" placeholder="Min Price"
+           value="{{ request.args.get('min_price','') }}">
+  </div>
+  <div class="col-6 col-md-2">
+    <input type="number" class="form-control rounded-3 shadow-sm"
+           name="max_price" placeholder="Max Price"
+           value="{{ request.args.get('max_price','') }}">
+  </div>
+
+  <!-- Sort -->
+  <div class="col-6 col-md-2">
+    {% set sort_by = request.args.get('sort_by','area_sqft') %}
+    <select class="form-select rounded-3 shadow-sm" name="sort_by">
+      <option value="area_sqft" {{ 'selected' if sort_by == 'area_sqft' }}>Sort by Area</option>
+      <option value="price"     {{ 'selected' if sort_by == 'price' }}>Sort by Price</option>
+      <option value="beds"      {{ 'selected' if sort_by == 'beds' }}>Sort by Beds</option>
+    </select>
+  </div>
+
+  <!-- Order -->
+  <div class="col-6 col-md-2">
+    {% set order = request.args.get('order','desc') %}
+    <select class="form-select rounded-3 shadow-sm" name="order">
+      <option value="desc" {{ 'selected' if order == 'desc' }}>Descending</option>
+      <option value="asc"  {{ 'selected' if order == 'asc'  }}>Ascending</option>
+    </select>
+  </div>
+
+  <!-- Actions -->
+  <div class="col-12 col-md-auto d-flex gap-2 mt-2 mt-md-0">
+    <button type="submit" class="btn btn-primary rounded-3 shadow-sm px-4">Apply</button>
+    <a href="{{ url_for('home') }}" class="btn btn-outline-secondary rounded-3 shadow-sm px-4">Clear</a>
+  </div>
+</div>
